@@ -1,0 +1,54 @@
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const loginRouter = express.Router();
+const login = require('../model/logins');
+const userDetails = require('../model/userDetails');
+
+const loginUser = async (req, res) => {
+  try {
+    const { userName, password } = req.body;
+
+    // Validation for missing fields
+    if (!(userName && password)) {
+      console.log("Enter all fields");
+      return res.status(400).json({ code: "0", msg: "Validation error: Missing fields" });
+    }
+
+    // Find the user by userName
+    const user = await login.findOne({ userName });
+    if (!user) {
+      console.log("User does not exist");
+      return res.status(400).json({ code: 0, msg: "Username not found" });
+    }
+
+    // Check if the entered password matches the stored password
+    if (password !== user.password) { // Simple comparison without hashing
+      return res.status(400).json({ code: 0, msg: "Incorrect password" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userName: user.userName },
+      process.env.SECRET_KEY,
+      { expiresIn: "15m" } // Token expiry time
+    );
+    console.log("User signed in, token created successfully. Token:", token);
+
+    // Remove password from user object before sending response
+    user.password = undefined;
+    user.token = token;
+    const userDetail = await userDetails.findOne({ name:userName });
+
+    const userType = userDetail.userType ? userDetail.userType : "student"; // Default to 'student' if not found
+
+    return res.status(201).json({ code: 1,  msg: "Login successful",  JWT: token,userType
+});
+
+  } catch (error) {
+    console.log("Error in login route", error);
+    return res.status(500).json({ code: -1, msg: "Internal server error", error });
+  }
+};
+
+loginRouter.post('/', loginUser);
+module.exports = loginRouter;
